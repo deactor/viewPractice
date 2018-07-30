@@ -1,1 +1,1 @@
-include ':app', ':testhttp', ':testlayout'
+include ':app', ':testhttp', ':testlayout', ':scalableimageview'
