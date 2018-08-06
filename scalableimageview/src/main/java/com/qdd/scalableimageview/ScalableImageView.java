@@ -1,5 +1,7 @@
 package com.qdd.scalableimageview;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -10,25 +12,50 @@ import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.GestureDetector;
+import android.widget.OverScroller;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.OverScroller;
 
-public class ScalableImageView extends View implements GestureDetector.OnDoubleTapListener, GestureDetector.OnGestureListener {
+public class ScalableImageView extends View implements GestureDetector.OnDoubleTapListener, GestureDetector
+        .OnGestureListener {
     private static final String TAG = "qddt";
+    //默认放大倍数
     private static final float DEFAULT_SCALE = 4f;
 
-    private Bitmap bmp;
-    private Paint bmpPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private float imageWidth = Utils.dp2px(250);
-    private float imageHight;
+    private Bitmap mBmp;
+    private Paint mBmpPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private float mImageWidth = Utils.dp2px(250);
+    private float mImageHight;
     private float mScale = 1f;
 
-    private boolean isScale;
-    private GestureDetector gestureDetector;
-    private float gesture_dx;
-    private float gesture_dy;
+    private boolean mIsScaled;
+    private GestureDetector mGestureDetector;
+    //手指在X轴上的移动距离
+    private float mGesture_dx;
+    //手指在Y轴上的移动距离
+    private float mGesture_dy;
 
+    //图片移动位置X
+    private float mImg_OffsetX;
+    //图片移动位置Y
+    private float mImg_OffsetY;
+
+    //temp test start
+    private float OffsetX;
+    private float OffsetY;
+    //temp test end
+
+    //双击点X坐标
+    private float mDouPoint_X;
+    //双击点Y坐标
+    private float mDouPoint_Y;
+
+    //控制放大的动画
+    private ObjectAnimator mScaleAnimator;
+    //控制缩放动画完成度
+    private float fraction;
+
+    //控制Fling，OverScroller与Scroller有什么区别？
     private OverScroller mScroller;
 
     public ScalableImageView(Context context) {
@@ -41,41 +68,52 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
     }
 
     private void init(Context context, @Nullable AttributeSet attrs) {
-        bmp = Utils.getAvatar(context.getResources(), (int) imageWidth);
-        imageHight = bmp.getHeight();
-        gestureDetector = new GestureDetector(context, this);
-        gestureDetector.setOnDoubleTapListener(this);
+        mBmp = Utils.getAvatar(context.getResources(), (int) mImageWidth);
+        mImageHight = mBmp.getHeight();
+        mGestureDetector = new GestureDetector(context, this);
+        mGestureDetector.setOnDoubleTapListener(this);
 
-        mAnimator = ObjectAnimator.ofFloat(this, "fraction", 1f);
+        mScaleAnimator = ObjectAnimator.ofFloat(this, "fraction", 1f);
+        mScaleAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation, boolean isReverse) {
+                    mGesture_dx = 0;
+                    mGesture_dy = 0;
+                    OffsetX = OffsetY = 0;
+            }
+        });
 
         mScroller = new OverScroller(context);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-
-        return gestureDetector.onTouchEvent(event);
+        //触摸事件交由GestureDetector来处理
+        return mGestureDetector.onTouchEvent(event);
 
     }
-
-    private float offectX;
-    private float offectY;
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         super.onLayout(changed, left, top, right, bottom);
-        offectX = (getWidth() - bmp.getWidth()) / 2;
-        offectY = (getHeight() - bmp.getHeight()) / 2;
+        mImg_OffsetX = (getWidth() - mImageWidth) / 2;
+        mImg_OffsetY = (getHeight() - mImageHight) / 2;
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        mScale = 1f + (DEFAULT_SCALE - 1f) * fraction;;
+        mScale = 1f + (DEFAULT_SCALE - 1f) * fraction;
         canvas.drawColor(Color.BLUE);
-        canvas.translate(gesture_dx,gesture_dy);
-        canvas.scale(mScale, mScale, getWidth() / 2, getHeight() / 2);
-        canvas.drawBitmap(bmp, offectX, offectY, bmpPaint);
+        //跟随手指移动图片
+        canvas.translate(mGesture_dx * fraction, mGesture_dy * fraction);
+        //始终以canvas的中心点为缩放中心
+        canvas.scale(mScale, mScale, getWidth()/2, getHeight()/2);
+        //将双击点移动到中心
+        canvas.translate(OffsetX,OffsetY);
+        //将图片移动到中心
+        canvas.translate(mImg_OffsetX,mImg_OffsetY);
+        canvas.drawBitmap(mBmp, 0, 0, mBmpPaint);
     }
 
     @Override
@@ -83,8 +121,6 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
         return false;
     }
 
-    private float fraction;
-    private ObjectAnimator mAnimator;
 
     public float getFraction() {
         return fraction;
@@ -97,12 +133,19 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
 
     @Override
     public boolean onDoubleTap(MotionEvent motionEvent) {
-        isScale = !isScale;
-        if (isScale) {
-            mAnimator.start();
+        mDouPoint_X = motionEvent.getX();
+        mDouPoint_Y = motionEvent.getY();
+        Log.d(TAG,"mDouPoint_X = " + mDouPoint_X + " ; mDouPoint_Y = " + mDouPoint_Y);
+
+        OffsetX = getWidth()/2 - mDouPoint_X;
+        OffsetY = getHeight()/2 - mDouPoint_Y;
+
+        if (mIsScaled) {
+            mScaleAnimator.reverse();
         } else {
-            mAnimator.reverse();
+            mScaleAnimator.start();
         }
+        mIsScaled = !mIsScaled;
         return true;
     }
 
@@ -113,6 +156,7 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
 
     @Override
     public boolean onDown(MotionEvent motionEvent) {
+        //onDown如果不返回true，其他后续事件序列（onDoubleTap等）都不会被接收到。
         return true;
     }
 
@@ -128,17 +172,19 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
 
     @Override
     public boolean onScroll(MotionEvent motionEvent, MotionEvent motionEvent1, float dx, float dy) {
-        if(!isScale){
-            return true;
+        //原始未缩放的图片不允许滚动操作
+        if (!mIsScaled) {
+            return false;
         }
-        gesture_dx -= dx;
-        //gesture_dx需要在- (imageWidth*mScale - getWidth())/ 2 和(imageWidth*mScale - getWidth())/ 2之间
-        gesture_dx = Math.min(gesture_dx,(imageWidth*mScale - getWidth())/ 2);
-        gesture_dx = Math.max(gesture_dx,- (imageWidth*mScale - getWidth())/ 2);
-        gesture_dy -= dy;
+        //增量距离，每次scroll的距离为起点-终点。
+        mGesture_dx -= dx;
+        //gesture_dx需要在- (mImageWidth*mScale - getWidth())/ 2 和(mImageWidth*mScale - getWidth())/ 2之间
+        mGesture_dx = Math.min(mGesture_dx, (mImageWidth * mScale - getWidth()) / 2);
+        mGesture_dx = Math.max(mGesture_dx, -(mImageWidth * mScale - getWidth()) / 2);
+        mGesture_dy -= dy;
         //gesture_dy同上
-        gesture_dy = Math.min(gesture_dy,(imageHight*mScale - getHeight())/ 2);
-        gesture_dy = Math.max(gesture_dy,- (imageHight*mScale - getHeight())/ 2);
+        mGesture_dy = Math.min(mGesture_dy, (mImageHight * mScale - getHeight()) / 2);
+        mGesture_dy = Math.max(mGesture_dy, -(mImageHight * mScale - getHeight()) / 2);
         invalidate();
         return true;
     }
@@ -151,12 +197,13 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
     Runnable scrollerAnimator = new Runnable() {
         @Override
         public void run() {
-            if(mScroller == null){
+            if (mScroller == null) {
                 return;
             }
-            if(mScroller.computeScrollOffset()){
-                gesture_dx = mScroller.getCurrX();
-                gesture_dy = mScroller.getCurrY();
+            //这个computeScrollOffset()是怎么计算的，getCurrX和getCurrY得到的是什么？
+            if (mScroller.computeScrollOffset()) {
+                mGesture_dx = mScroller.getCurrX();
+                mGesture_dy = mScroller.getCurrY();
                 invalidate();
 
                 postOnAnimation(scrollerAnimator);
@@ -164,10 +211,18 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
         }
     };
 
+
     @Override
     public boolean onFling(MotionEvent motionEvent, MotionEvent motionEvent1, float vx, float vy) {
-        mScroller.fling((int)gesture_dx,(int)gesture_dy,(int)vx,(int)vy,(int)(getWidth() - imageWidth*mScale) / 2,(int)(imageWidth*mScale - getWidth()) / 2,(int)(getHeight() - imageHight*mScale) / 2,(int)(imageHight*mScale - getHeight()) / 2);
+        //原始未缩放的图片不允许Fling操作
+        if (!mIsScaled) {
+            return false;
+        }
+        mScroller.fling((int) mGesture_dx, (int) mGesture_dy, (int) vx, (int) vy, (int) (getWidth() - mImageWidth *
+                mScale) / 2, (int) (mImageWidth * mScale - getWidth()) / 2, (int) (getHeight() - mImageHight * mScale)
+                / 2, (int) (mImageHight * mScale - getHeight()) / 2, 100, 100);
+        //为什么要使用postOnAnimation?
         postOnAnimation(scrollerAnimator);
-        return false;
+        return true;
     }
 }

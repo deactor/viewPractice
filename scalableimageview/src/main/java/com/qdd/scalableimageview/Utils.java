@@ -13,10 +13,10 @@ public class Utils {
     public static Bitmap getAvatar(Resources res, int size) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
-        BitmapFactory.decodeResource(res, R.drawable.dog, options);
+        BitmapFactory.decodeResource(res, R.drawable.timg, options);
         options.inJustDecodeBounds = false;
         options.inDensity = options.outWidth;
         options.inTargetDensity = size;
-        return BitmapFactory.decodeResource(res, R.drawable.dog, options);
+        return BitmapFactory.decodeResource(res, R.drawable.timg, options);
     }
 }
