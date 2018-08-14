@@ -35,15 +35,15 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
     //手指在Y轴上的移动距离
     private float mGesture_dy;
 
-    //图片移动位置X
+    //起始状态图片居中的X差值
     private float mImg_OffsetX;
-    //图片移动位置Y
+    //起始状态图片居中的Y差值
     private float mImg_OffsetY;
 
-    //temp test start
+    //记录缩放点到缩放中心的X差值
     private float OffsetX;
+    //记录缩放点到缩放中心的Y差值
     private float OffsetY;
-    //temp test end
 
     //双击点X坐标
     private float mDouPoint_X;
@@ -77,8 +77,7 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
         mScaleAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation, boolean isReverse) {
-                    mGesture_dx = 0;
-                    mGesture_dy = 0;
+                    mGesture_dx = mGesture_dy = 0;
                     OffsetX = OffsetY = 0;
             }
         });
@@ -106,13 +105,20 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
         mScale = 1f + (DEFAULT_SCALE - 1f) * fraction;
         canvas.drawColor(Color.BLUE);
         //跟随手指移动图片
+        if(!mIsScaled){
         canvas.translate(mGesture_dx * fraction, mGesture_dy * fraction);
+        }
+        //缩放后将双击点移回到原来位置
+        canvas.translate(-OffsetX,-OffsetY);
         //始终以canvas的中心点为缩放中心
         canvas.scale(mScale, mScale, getWidth()/2, getHeight()/2);
         //将双击点移动到中心
         canvas.translate(OffsetX,OffsetY);
         //将图片移动到中心
         canvas.translate(mImg_OffsetX,mImg_OffsetY);
+        if(mIsScaled){
+        canvas.translate(-mGesture_dx * fraction, -mGesture_dy * fraction);
+        }
         canvas.drawBitmap(mBmp, 0, 0, mBmpPaint);
     }
 
@@ -142,6 +148,7 @@ public class ScalableImageView extends View implements GestureDetector.OnDoubleT
 
         if (mIsScaled) {
             mScaleAnimator.reverse();
+            OffsetY = OffsetX = 0;
         } else {
             mScaleAnimator.start();
         }
